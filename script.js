@@ -527,7 +527,327 @@ document.addEventListener('DOMContentLoaded', () => {
   Cart.updateBadge();
 
   // =============================================
-  // 18. BODY REVEAL
+  // 18. ANIMATED GOOEY SEARCH BAR
+  // =============================================
+
+  // Generate particles HTML
+  function generateParticlesHTML(count) {
+    let html = '';
+    for (let i = 0; i < count; i++) {
+      const size = Math.random() * 10 + 4;
+      const left = Math.random() * 100;
+      const top = Math.random() * 100;
+      const dx = (Math.random() - 0.5) * 50;
+      const dy = (Math.random() - 0.5) * 30;
+      const delay = Math.random() * 2;
+      const dur = Math.random() * 2 + 2;
+      html += `<div class="search-particle" style="
+        width:${size}px; height:${size}px;
+        left:${left}%; top:${top}%;
+        --dx:${dx}px; --dy:${dy}px;
+        animation-delay:${delay}s;
+        animation-duration:${dur}s;
+      "></div>`;
+    }
+    return html;
+  }
+
+  const searchOverlayHTML = `
+    <svg style="position:absolute;width:0;height:0" aria-hidden="true">
+      <defs>
+        <filter id="gooey-search">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+          <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo"/>
+          <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+        </filter>
+      </defs>
+    </svg>
+    <div class="search-overlay" id="searchOverlay">
+      <div class="search-overlay-header">
+        <button class="search-overlay-close" id="searchClose">✕</button>
+        <div class="search-overlay-label">Search Fragrances</div>
+        <div class="search-bar-wrapper" id="searchBarWrapper">
+          <div class="search-bar-glow"></div>
+          <div class="search-bar-inner" id="searchBarInner">
+            <div class="search-bar-gradient"></div>
+            <div class="search-bar-shimmer"></div>
+            <div class="search-particles" id="searchParticles">
+              ${generateParticlesHTML(14)}
+            </div>
+            <div class="search-bar-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            </div>
+            <input type="text" class="search-input" id="searchInput" placeholder="Cari parfum... contoh: Vanilla, Eros, Luxury" autocomplete="off">
+            <button type="button" class="search-submit-btn" id="searchSubmitBtn">Search</button>
+          </div>
+        </div>
+      </div>
+      <div class="search-results" id="searchResults">
+        <div class="search-empty">
+          <span class="search-empty-icon">🔍</span>
+          <p class="search-empty-text">Ketik nama parfum, karakter, atau kategori<br>untuk menemukan wangi yang kamu cari</p>
+          <div class="search-suggestions" id="searchSuggestions">
+            <span class="search-suggestion-tag" data-query="Luxury">Luxury</span>
+            <span class="search-suggestion-tag" data-query="Sweet">Sweet</span>
+            <span class="search-suggestion-tag" data-query="Fresh">Fresh</span>
+            <span class="search-suggestion-tag" data-query="Masculine">Masculine</span>
+            <span class="search-suggestion-tag" data-query="Feminine">Feminine</span>
+            <span class="search-suggestion-tag" data-query="Vanilla">Vanilla</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', searchOverlayHTML);
+
+  const searchOverlay = document.getElementById('searchOverlay');
+  const searchInput = document.getElementById('searchInput');
+  const searchResults = document.getElementById('searchResults');
+  const searchCloseBtn = document.getElementById('searchClose');
+  const searchBarWrapper = document.getElementById('searchBarWrapper');
+  const searchBarInner = document.getElementById('searchBarInner');
+  const searchSubmitBtn = document.getElementById('searchSubmitBtn');
+
+  // Focus/blur handling for gooey animation
+  if (searchInput) {
+    searchInput.addEventListener('focus', () => {
+      searchBarWrapper.classList.add('focused');
+    });
+    searchInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        searchBarWrapper.classList.remove('focused');
+      }, 200);
+    });
+  }
+
+  // Submit button visibility
+  function updateSubmitBtn() {
+    if (!searchSubmitBtn) return;
+    if (searchInput.value.trim()) {
+      searchSubmitBtn.classList.add('visible');
+    } else {
+      searchSubmitBtn.classList.remove('visible');
+    }
+  }
+
+  // Click ripple + burst effect on search bar
+  if (searchBarInner) {
+    searchBarInner.addEventListener('click', (e) => {
+      const rect = searchBarInner.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // Ripple
+      const ripple = document.createElement('div');
+      ripple.className = 'search-click-ripple';
+      ripple.style.left = x + 'px';
+      ripple.style.top = y + 'px';
+      ripple.style.width = '60px';
+      ripple.style.height = '60px';
+      ripple.style.marginLeft = '-30px';
+      ripple.style.marginTop = '-30px';
+      searchBarInner.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 800);
+
+      // Burst particles
+      for (let i = 0; i < 10; i++) {
+        const bp = document.createElement('div');
+        bp.className = 'search-burst-particle';
+        const bx = (Math.random() - 0.5) * 120;
+        const by = (Math.random() - 0.5) * 80;
+        const hue = 40 + Math.random() * 20; // gold hue range
+        bp.style.left = x + 'px';
+        bp.style.top = y + 'px';
+        bp.style.setProperty('--bx', bx + 'px');
+        bp.style.setProperty('--by', by + 'px');
+        bp.style.background = `hsla(${hue}, 70%, 55%, 0.8)`;
+        bp.style.boxShadow = `0 0 6px hsla(${hue}, 70%, 55%, 0.6)`;
+        searchBarInner.appendChild(bp);
+        setTimeout(() => bp.remove(), 700);
+      }
+    });
+  }
+
+  // Submit button click
+  if (searchSubmitBtn) {
+    searchSubmitBtn.addEventListener('click', () => {
+      if (searchInput.value.trim()) {
+        performSearch(searchInput.value);
+        // Animate search icon
+        const iconSvg = searchBarWrapper.querySelector('.search-bar-icon svg');
+        if (iconSvg) {
+          iconSvg.style.transition = 'transform 0.5s ease';
+          iconSvg.style.transform = 'rotate(360deg) scale(1.3)';
+          setTimeout(() => {
+            iconSvg.style.transform = 'rotate(0deg) scale(1)';
+          }, 500);
+        }
+      }
+    });
+  }
+
+  function openSearch() {
+    searchOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+      searchInput.focus();
+      searchBarWrapper.classList.add('focused');
+    }, 300);
+  }
+
+  function closeSearch() {
+    searchOverlay.classList.remove('active');
+    searchBarWrapper.classList.remove('focused');
+    if (!modal.classList.contains('active') && !cartSidebar.classList.contains('open')) {
+      document.body.style.overflow = '';
+    }
+    searchInput.value = '';
+    updateSubmitBtn();
+    renderSearchDefault();
+  }
+
+  function renderSearchDefault() {
+    searchResults.innerHTML = `
+      <div class="search-empty">
+        <span class="search-empty-icon">🔍</span>
+        <p class="search-empty-text">Ketik nama parfum, karakter, atau kategori<br>untuk menemukan wangi yang kamu cari</p>
+        <div class="search-suggestions" id="searchSuggestions">
+          <span class="search-suggestion-tag" data-query="Luxury">Luxury</span>
+          <span class="search-suggestion-tag" data-query="Sweet">Sweet</span>
+          <span class="search-suggestion-tag" data-query="Fresh">Fresh</span>
+          <span class="search-suggestion-tag" data-query="Masculine">Masculine</span>
+          <span class="search-suggestion-tag" data-query="Feminine">Feminine</span>
+          <span class="search-suggestion-tag" data-query="Vanilla">Vanilla</span>
+        </div>
+      </div>
+    `;
+    bindSuggestionTags();
+  }
+
+  function highlightText(text, query) {
+    if (!query) return text;
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<mark>$1</mark>');
+  }
+
+  function performSearch(query) {
+    if (typeof PRODUCTS === 'undefined') return;
+    const q = query.toLowerCase().trim();
+
+    if (!q) {
+      renderSearchDefault();
+      return;
+    }
+
+    const results = PRODUCTS.filter(p => {
+      const searchable = [
+        p.name,
+        p.category,
+        p.description,
+        ...p.characters,
+        p.badge || '',
+        p.notes ? Object.values(p.notes).join(' ') : ''
+      ].join(' ').toLowerCase();
+      return searchable.includes(q);
+    });
+
+    if (results.length === 0) {
+      searchResults.innerHTML = `
+        <div class="search-empty">
+          <span class="search-empty-icon">😔</span>
+          <p class="search-empty-text">Tidak ada parfum yang cocok dengan "<strong>${query}</strong>"<br>Coba kata kunci lain</p>
+          <div class="search-suggestions" id="searchSuggestions">
+            <span class="search-suggestion-tag" data-query="Women">Women</span>
+            <span class="search-suggestion-tag" data-query="Men">Men</span>
+            <span class="search-suggestion-tag" data-query="Unisex">Unisex</span>
+            <span class="search-suggestion-tag" data-query="Gourmand">Gourmand</span>
+          </div>
+        </div>
+      `;
+      bindSuggestionTags();
+      return;
+    }
+
+    let html = `<div class="search-results-count">${results.length} parfum ditemukan</div><div class="search-results-grid">`;
+    results.forEach(p => {
+      html += `
+        <div class="search-result-item" data-product-id="${p.id}">
+          <div class="search-result-img"><img src="${p.image}" alt="${p.name}"></div>
+          <div class="search-result-info">
+            <div class="search-result-name">${highlightText(p.name, query)}</div>
+            <div class="search-result-chars">${p.characters.join(' • ')}</div>
+            <div class="search-result-price">${formatPrice(p.price)}</div>
+          </div>
+          ${p.badge ? `<span class="search-result-badge">${p.badge}</span>` : ''}
+        </div>
+      `;
+    });
+    html += '</div>';
+    searchResults.innerHTML = html;
+
+    // Click result to open modal
+    searchResults.querySelectorAll('.search-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const pid = item.dataset.productId;
+        closeSearch();
+        setTimeout(() => openModal(pid), 300);
+      });
+    });
+  }
+
+  function bindSuggestionTags() {
+    document.querySelectorAll('.search-suggestion-tag').forEach(tag => {
+      tag.addEventListener('click', () => {
+        const q = tag.dataset.query;
+        searchInput.value = q;
+        updateSubmitBtn();
+        performSearch(q);
+        searchInput.focus();
+      });
+    });
+  }
+
+  // Search icon click
+  document.querySelectorAll('.search-icon').forEach(icon => {
+    icon.addEventListener('click', (e) => {
+      e.preventDefault();
+      openSearch();
+    });
+  });
+
+  if (searchCloseBtn) searchCloseBtn.addEventListener('click', closeSearch);
+  if (searchOverlay) searchOverlay.addEventListener('click', (e) => { if (e.target === searchOverlay) closeSearch(); });
+
+  // Live search with debounce
+  let searchTimer;
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      updateSubmitBtn();
+      searchTimer = setTimeout(() => performSearch(searchInput.value), 200);
+    });
+    // Enter key to search
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        performSearch(searchInput.value);
+      }
+    });
+  }
+
+  // Update Escape key handler
+  document.removeEventListener('keydown', arguments.callee);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (searchOverlay.classList.contains('active')) { closeSearch(); return; }
+      closeModal(); closeCart();
+    }
+  });
+
+  bindSuggestionTags();
+
+  // =============================================
+  // 19. BODY REVEAL
   // =============================================
   document.body.style.opacity = '0';
   document.body.style.transition = 'opacity 0.5s ease';
