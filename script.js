@@ -196,6 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // 8. MAGNETIC BUTTONS
   // =============================================
   document.querySelectorAll('.cta-button, .hero-cta').forEach(btn => {
+    if (btn.closest('.product-actions')) return;
+
     btn.addEventListener('mousemove', (e) => {
       const rect = btn.getBoundingClientRect();
       btn.style.transform = `translate(${(e.clientX-rect.left-rect.width/2)*0.2}px, ${(e.clientY-rect.top-rect.height/2)*0.2}px)`;
@@ -443,18 +445,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const cartSidebar = document.getElementById('cartSidebar');
   const cartOverlay = document.getElementById('cartOverlay');
   const cartCloseBtn = document.getElementById('cartClose');
+  let cartScrollTop = 0;
+
+  function lockCartPageScroll() {
+    if (document.body.classList.contains('cart-scroll-locked')) return;
+
+    cartScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add('cart-scroll-locked');
+    document.body.classList.add('cart-scroll-locked');
+    document.body.style.top = `-${cartScrollTop}px`;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function unlockCartPageScroll() {
+    if (!document.body.classList.contains('cart-scroll-locked')) return;
+
+    document.documentElement.classList.remove('cart-scroll-locked');
+    document.body.classList.remove('cart-scroll-locked');
+    document.body.style.top = '';
+    if (!modal.classList.contains('active')) document.body.style.overflow = '';
+    window.scrollTo(0, cartScrollTop);
+  }
 
   function openCart() {
     cartSidebar.classList.add('open');
     cartOverlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
+    lockCartPageScroll();
     renderCartItems();
   }
 
   function closeCart() {
     cartSidebar.classList.remove('open');
     cartOverlay.classList.remove('active');
-    if (!modal.classList.contains('active')) document.body.style.overflow = '';
+    unlockCartPageScroll();
   }
 
   if (cartCloseBtn) cartCloseBtn.addEventListener('click', closeCart);
@@ -630,6 +653,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function applySuggestionQuery(tag) {
+    const q = tag.dataset.query;
+    if (!q) return;
+
+    searchInput.value = q;
+    updateSubmitBtn();
+    performSearch(q);
+    searchInput.focus();
+  }
+
+  if (searchResults) {
+    searchResults.addEventListener('pointerdown', (e) => {
+      const tag = e.target.closest('.search-suggestion-tag');
+      if (!tag || !searchResults.contains(tag)) return;
+
+      e.preventDefault();
+      applySuggestionQuery(tag);
+    });
+
+    searchResults.addEventListener('keydown', (e) => {
+      const tag = e.target.closest('.search-suggestion-tag');
+      if (!tag || !searchResults.contains(tag)) return;
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+
+      e.preventDefault();
+      applySuggestionQuery(tag);
+    });
+  }
+
   // Click ripple + burst effect on search bar
   if (searchBarInner) {
     searchBarInner.addEventListener('click', (e) => {
@@ -687,6 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openSearch() {
+    bindSuggestionTags();
     searchOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
     setTimeout(() => {
@@ -796,14 +849,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function bindSuggestionTags() {
-    document.querySelectorAll('.search-suggestion-tag').forEach(tag => {
-      tag.addEventListener('click', () => {
-        const q = tag.dataset.query;
-        searchInput.value = q;
-        updateSubmitBtn();
-        performSearch(q);
-        searchInput.focus();
-      });
+    searchResults.querySelectorAll('.search-suggestion-tag').forEach(tag => {
+      tag.setAttribute('role', 'button');
+      tag.tabIndex = 0;
     });
   }
 
@@ -835,8 +883,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Update Escape key handler
-  document.removeEventListener('keydown', arguments.callee);
+  // Search overlay Escape handling
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (searchOverlay.classList.contains('active')) { closeSearch(); return; }
