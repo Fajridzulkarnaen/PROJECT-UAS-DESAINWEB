@@ -76,6 +76,35 @@ const Cart = {
 // MAIN APP
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
+  let lockedPageScrollTop = 0;
+  const pageScrollLocks = new Set();
+
+  function lockPageScroll(lockName) {
+    if (!pageScrollLocks.size) {
+      lockedPageScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      document.documentElement.classList.add('page-scroll-locked');
+      document.body.classList.add('page-scroll-locked');
+      document.body.style.top = `-${lockedPageScrollTop}px`;
+      document.body.style.overflow = 'hidden';
+    }
+
+    pageScrollLocks.add(lockName);
+  }
+
+  function unlockPageScroll(lockName) {
+    if (!pageScrollLocks.has(lockName)) return;
+
+    pageScrollLocks.delete(lockName);
+    if (pageScrollLocks.size) return;
+
+    document.documentElement.classList.remove('page-scroll-locked');
+    document.body.classList.remove('page-scroll-locked');
+    document.body.style.top = '';
+    document.body.style.overflow = '';
+    // Override the global `scroll-behavior: smooth` while restoring the page.
+    // Closing an overlay should reveal the exact previous position immediately.
+    window.scrollTo({ top: lockedPageScrollTop, left: 0, behavior: 'instant' });
+  }
 
   // =============================================
   // 1. PAGE TRANSITION
@@ -112,10 +141,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function toggleMobileMenu() {
     if (!hamburger || !navMenu) return;
-    hamburger.classList.toggle('active');
-    navMenu.classList.toggle('open');
-    if (mobileOverlay) mobileOverlay.classList.toggle('active');
-    document.body.style.overflow = navMenu.classList.contains('open') ? 'hidden' : '';
+    const shouldOpen = !navMenu.classList.contains('open');
+
+    hamburger.classList.toggle('active', shouldOpen);
+    navMenu.classList.toggle('open', shouldOpen);
+    if (mobileOverlay) mobileOverlay.classList.toggle('active', shouldOpen);
+
+    if (shouldOpen) {
+      lockPageScroll('mobile-menu');
+    } else {
+      unlockPageScroll('mobile-menu');
+    }
   }
 
   if (hamburger) hamburger.addEventListener('click', toggleMobileMenu);
@@ -163,14 +199,41 @@ document.addEventListener('DOMContentLoaded', () => {
   // =============================================
   const parallaxEls = document.querySelectorAll('[data-parallax]');
   if (parallaxEls.length) {
-    window.addEventListener('scroll', () => {
+    const parallaxMotion = window.matchMedia('(min-width: 769px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
+    let parallaxTicking = false;
+
+    const updateParallax = () => {
       const scrollY = window.scrollY;
+
       parallaxEls.forEach(el => {
-        const speed = parseFloat(el.dataset.parallax) || 0.3;
         const img = el.querySelector('img');
-        if (img) img.style.transform = `translateY(${scrollY * speed}px) scale(1.1)`;
+        if (!img) return;
+
+        if (!parallaxMotion.matches) {
+          img.style.removeProperty('transform');
+          return;
+        }
+
+        const speed = parseFloat(el.dataset.parallax) || 0.3;
+        img.style.transform = `translate3d(0, ${scrollY * speed}px, 0) scale(1.1)`;
       });
-    }, { passive: true });
+
+      parallaxTicking = false;
+    };
+
+    const requestParallaxUpdate = () => {
+      if (parallaxTicking) return;
+      parallaxTicking = true;
+      window.requestAnimationFrame(updateParallax);
+    };
+
+    window.addEventListener('scroll', requestParallaxUpdate, { passive: true });
+    if (typeof parallaxMotion.addEventListener === 'function') {
+      parallaxMotion.addEventListener('change', requestParallaxUpdate);
+    } else {
+      parallaxMotion.addListener(requestParallaxUpdate);
+    }
+    updateParallax();
   }
 
   // =============================================
@@ -197,6 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =============================================
   document.querySelectorAll('.cta-button, .hero-cta').forEach(btn => {
     if (btn.closest('.product-actions')) return;
+    if (btn.classList.contains('contact-submit-button')) return;
 
     btn.addEventListener('mousemove', (e) => {
       const rect = btn.getBoundingClientRect();
@@ -316,13 +380,54 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =============================================
-  // 16. PRODUCT MODAL
+  // 16. BACK TO TOP
   // =============================================
+  const backToTop = document.createElement('button');
+  backToTop.type = 'button';
+  backToTop.className = 'back-to-top';
+  backToTop.setAttribute('aria-label', 'Kembali ke atas');
+  backToTop.setAttribute('title', 'Kembali ke atas');
+  backToTop.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <path d="m18 15-6-6-6 6" />
+    </svg>
+  `;
+  document.body.appendChild(backToTop);
+
+  let backToTopTicking = false;
+  const updateBackToTop = () => {
+    backToTop.classList.toggle('visible', window.scrollY > 500);
+    backToTopTicking = false;
+  };
+
+  window.addEventListener('scroll', () => {
+    if (backToTopTicking) return;
+    backToTopTicking = true;
+    window.requestAnimationFrame(updateBackToTop);
+  }, { passive: true });
+
+  backToTop.addEventListener('click', () => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  });
+  updateBackToTop();
+
+  // =============================================
+  // 17. PRODUCT MODAL
+  // =============================================
+  const WHATSAPP_NUMBER = '62895383060656';
+
+  function openWhatsAppMessage(message) {
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   // Create modal container
   const modalHTML = `
-    <div class="modal-overlay" id="productModal">
-      <div class="modal-content">
-        <button class="modal-close" id="modalClose">✕</button>
+    <div class="modal-overlay" id="productModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalName">
+      <div class="modal-content" role="document">
+        <button class="modal-close" id="modalClose" type="button" aria-label="Close product details">✕</button>
         <div class="modal-image">
           <img id="modalImg" src="" alt="">
         </div>
@@ -337,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <div class="modal-actions">
             <button class="cta-button filled" id="modalAddCart" style="flex:1;justify-content:center;">Add to Cart <span class="arrow">→</span></button>
-            <button class="cta-button" id="modalWhatsApp" onclick="window.open('https://wa.me/6281234567890','_blank')" style="flex:1;justify-content:center;">WhatsApp <span class="arrow">→</span></button>
+            <button class="cta-button" id="modalWhatsApp" type="button" style="flex:1;justify-content:center;">WhatsApp <span class="arrow">→</span></button>
           </div>
         </div>
       </div>
@@ -347,11 +452,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const modal = document.getElementById('productModal');
   const modalClose = document.getElementById('modalClose');
+  const PRODUCT_MODAL_STATE_KEY = 'bcollonyProductModal';
+  let modalHistoryActive = false;
+  let modalTrigger = null;
 
-  function openModal(productId) {
+  function openModal(productId, { pushHistory = true } = {}) {
     if (typeof PRODUCTS === 'undefined') return;
     const product = PRODUCTS.find(p => p.id === productId);
     if (!product) return;
+    const wasOpen = modal.classList.contains('active');
 
     document.getElementById('modalImg').src = product.image;
     document.getElementById('modalImg').alt = product.name;
@@ -389,18 +498,84 @@ document.addEventListener('DOMContentLoaded', () => {
       renderCartItems();
     };
 
+    document.getElementById('modalWhatsApp').onclick = () => {
+      const message = [
+        'Halo B.Collony, saya tertarik dengan produk berikut:',
+        '',
+        `*${product.name}*`,
+        `Harga: *${formatPrice(product.price)}*`,
+        `Karakter: ${product.characters.join(', ')}`,
+        '',
+        'Mohon info ketersediaan dan cara pemesanannya. Terima kasih!'
+      ].join('\n');
+
+      openWhatsAppMessage(message);
+    };
+
+    if (!wasOpen) modalTrigger = document.activeElement;
+
     modal.classList.add('active');
-    document.body.style.overflow = 'hidden';
+    modal.setAttribute('aria-hidden', 'false');
+    lockPageScroll('product-modal');
+
+    if (!wasOpen) {
+      if (pushHistory) {
+        history.pushState(
+          { ...(history.state || {}), [PRODUCT_MODAL_STATE_KEY]: productId },
+          '',
+          window.location.href
+        );
+        modalHistoryActive = true;
+      } else {
+        modalHistoryActive = Boolean(history.state?.[PRODUCT_MODAL_STATE_KEY]);
+      }
+
+      window.requestAnimationFrame(() => modalClose?.focus({ preventScroll: true }));
+    }
   }
 
-  function closeModal() {
+  function hideModal() {
+    if (!modal.classList.contains('active')) return;
+
     modal.classList.remove('active');
-    document.body.style.overflow = '';
+    modal.setAttribute('aria-hidden', 'true');
+    unlockPageScroll('product-modal');
+    modalHistoryActive = false;
+
+    if (modalTrigger && document.contains(modalTrigger)) {
+      modalTrigger.focus({ preventScroll: true });
+    }
+    modalTrigger = null;
   }
 
-  if (modalClose) modalClose.addEventListener('click', closeModal);
+  function closeModal({ syncHistory = true } = {}) {
+    const shouldGoBack = syncHistory
+      && modalHistoryActive
+      && Boolean(history.state?.[PRODUCT_MODAL_STATE_KEY]);
+
+    hideModal();
+    if (shouldGoBack) history.back();
+  }
+
+  if (modalClose) modalClose.addEventListener('click', () => closeModal());
   if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeModal(); closeCart(); } });
+
+  window.addEventListener('popstate', (event) => {
+    const productId = event.state?.[PRODUCT_MODAL_STATE_KEY];
+
+    if (modal.classList.contains('active')) {
+      if (productId) {
+        openModal(productId, { pushHistory: false });
+      } else {
+        closeModal({ syncHistory: false });
+      }
+      return;
+    }
+
+    // Re-open the same detail when the user moves forward in browser history.
+    if (productId) openModal(productId, { pushHistory: false });
+  });
 
   // Click on product cards to open modal
   document.querySelectorAll('.product-card[data-product-id]').forEach(card => {
@@ -421,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =============================================
-  // 17. SHOPPING CART SIDEBAR
+  // 18. SHOPPING CART SIDEBAR
   // =============================================
   const cartSidebarHTML = `
     <div class="cart-sidebar-overlay" id="cartOverlay"></div>
@@ -436,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="cart-total-label">Total</span>
           <span class="cart-total-price" id="cartTotal">Rp 0</span>
         </div>
-        <button class="cart-checkout" onclick="window.open('https://wa.me/6281234567890?text='+encodeURIComponent('Halo B.Collony, saya ingin order:\\n'+document.getElementById('cartItems').innerText),'_blank')">Checkout via WhatsApp</button>
+        <button class="cart-checkout" id="cartCheckout" type="button">Checkout via WhatsApp</button>
       </div>
     </div>
   `;
@@ -445,26 +620,65 @@ document.addEventListener('DOMContentLoaded', () => {
   const cartSidebar = document.getElementById('cartSidebar');
   const cartOverlay = document.getElementById('cartOverlay');
   const cartCloseBtn = document.getElementById('cartClose');
-  let cartScrollTop = 0;
+  const cartCheckoutBtn = document.getElementById('cartCheckout');
+
+  function getCartOrderItems() {
+    if (typeof PRODUCTS === 'undefined') return [];
+
+    return Cart.getItems().map(item => {
+      const product = PRODUCTS.find(p => p.id === item.id);
+      if (!product) return null;
+
+      return {
+        product,
+        qty: item.qty,
+        subtotal: product.price * item.qty
+      };
+    }).filter(Boolean);
+  }
+
+  function buildCartWhatsAppMessage() {
+    const orderItems = getCartOrderItems();
+    if (!orderItems.length) return '';
+
+    const lines = [
+      'Halo B.Collony, saya ingin melakukan pemesanan:',
+      '',
+      '*DETAIL PESANAN*'
+    ];
+
+    orderItems.forEach(({ product, qty, subtotal }, index) => {
+      lines.push(
+        `${index + 1}. *${product.name}*`,
+        `   Jumlah: ${qty}`,
+        `   Harga: ${formatPrice(product.price)}`,
+        `   Subtotal: *${formatPrice(subtotal)}*`,
+        ''
+      );
+    });
+
+    const total = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+    lines.push(
+      `*TOTAL PESANAN: ${formatPrice(total)}*`,
+      '',
+      'Mohon konfirmasi ketersediaan produk dan informasi pembayarannya. Terima kasih!'
+    );
+
+    return lines.join('\n');
+  }
+
+  function checkoutCartViaWhatsApp() {
+    const message = buildCartWhatsAppMessage();
+    if (!message) return;
+    openWhatsAppMessage(message);
+  }
 
   function lockCartPageScroll() {
-    if (document.body.classList.contains('cart-scroll-locked')) return;
-
-    cartScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-    document.documentElement.classList.add('cart-scroll-locked');
-    document.body.classList.add('cart-scroll-locked');
-    document.body.style.top = `-${cartScrollTop}px`;
-    document.body.style.overflow = 'hidden';
+    lockPageScroll('cart');
   }
 
   function unlockCartPageScroll() {
-    if (!document.body.classList.contains('cart-scroll-locked')) return;
-
-    document.documentElement.classList.remove('cart-scroll-locked');
-    document.body.classList.remove('cart-scroll-locked');
-    document.body.style.top = '';
-    if (!modal.classList.contains('active')) document.body.style.overflow = '';
-    window.scrollTo(0, cartScrollTop);
+    unlockPageScroll('cart');
   }
 
   function openCart() {
@@ -482,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (cartCloseBtn) cartCloseBtn.addEventListener('click', closeCart);
   if (cartOverlay) cartOverlay.addEventListener('click', closeCart);
+  if (cartCheckoutBtn) cartCheckoutBtn.addEventListener('click', checkoutCartViaWhatsApp);
 
   // Cart icon click
   document.querySelectorAll('.cart-icon').forEach(icon => {
@@ -514,6 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (items.length === 0) {
       container.innerHTML = '<div class="cart-empty"><span class="cart-empty-icon">🛒</span>Your cart is empty.<br>Start shopping to add items.</div>';
       if (totalEl) totalEl.textContent = 'Rp 0';
+      if (cartCheckoutBtn) cartCheckoutBtn.disabled = true;
       return;
     }
 
@@ -541,6 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     container.innerHTML = html;
     if (totalEl) totalEl.textContent = formatPrice(Cart.getTotal());
+    if (cartCheckoutBtn) cartCheckoutBtn.disabled = getCartOrderItems().length === 0;
   }
 
   // Make renderCartItems globally accessible
@@ -550,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Cart.updateBadge();
 
   // =============================================
-  // 18. ANIMATED GOOEY SEARCH BAR
+  // 19. ANIMATED GOOEY SEARCH BAR
   // =============================================
 
   // Generate particles HTML
@@ -668,7 +885,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const tag = e.target.closest('.search-suggestion-tag');
       if (!tag || !searchResults.contains(tag)) return;
 
+      e.stopPropagation();
+    });
+
+    searchResults.addEventListener('click', (e) => {
+      const tag = e.target.closest('.search-suggestion-tag');
+      if (!tag || !searchResults.contains(tag)) return;
+
       e.preventDefault();
+      e.stopPropagation();
       applySuggestionQuery(tag);
     });
 
@@ -678,6 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
 
       e.preventDefault();
+      e.stopPropagation();
       applySuggestionQuery(tag);
     });
   }
@@ -741,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function openSearch() {
     bindSuggestionTags();
     searchOverlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
+    lockPageScroll('search');
     setTimeout(() => {
       searchInput.focus();
       searchBarWrapper.classList.add('focused');
@@ -751,9 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function closeSearch() {
     searchOverlay.classList.remove('active');
     searchBarWrapper.classList.remove('focused');
-    if (!modal.classList.contains('active') && !cartSidebar.classList.contains('open')) {
-      document.body.style.overflow = '';
-    }
+    unlockPageScroll('search');
     searchInput.value = '';
     updateSubmitBtn();
     renderSearchDefault();
@@ -894,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindSuggestionTags();
 
   // =============================================
-  // 19. BODY REVEAL
+  // 20. BODY REVEAL
   // =============================================
   document.body.style.opacity = '0';
   document.body.style.transition = 'opacity 0.5s ease';
