@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =============================================
   // 17. PRODUCT MODAL
   // =============================================
-  const WHATSAPP_NUMBER = '62895383060656';
+  const WHATSAPP_NUMBER = '628984426839';
 
   function openWhatsAppMessage(message) {
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
